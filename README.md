@@ -109,5 +109,8 @@ You could also use host macros for the snmp community.
 
 ## What's new
 
+v1.1 2016-02-17
+Added parameter -A to show tunnel names in the extended output. Default is just number of active/down tunnel.
+
 v1.0 2016-02-09
 Initial release
