@@ -26,6 +26,9 @@ THE SOFTWARE.
 
 ------------------------
 
+v1.1 2016-02-17
+Added parameter -A to show tunnel names in the extended output. Default is just number of active/down tunnel.
+
 v1.0 2016-02-09
 Initial release
 '''
@@ -61,7 +64,8 @@ parser.add_option('-H', '--hostname', 			help='Required: IP or hostname of the B
 parser.add_option('-c', '--snmp_community', 	help='Required: SNMP community string', dest='arg_snmp_community', type='string', default='public')
 parser.add_option('-v', '--snmp_version', 		help='Optional: SNMP version (currently only snmp 1 and 2 supported)', dest='arg_snmp_version', type='string', default='2c')
 parser.add_option('-V', '--vpntunnel', 			help='Optional: Tunnel name to check. If not given, all tunnels will be checked', dest='arg_vpntunnel', type='string')
-parser.add_option('-E', '--vpntunnel_exclude', 	help='Optional: Comma separated tunnel names to exclude from check.', dest='arg_vpntunnel_exclude', type='string')
+parser.add_option('-E', '--vpntunnel_exclude', 	help='Optional: Comma separated tunnel names to exclude from check', dest='arg_vpntunnel_exclude', type='string')
+parser.add_option('-A', '--show_complete_name', help='Optional: Show complete VPN tunnel names in the extended output. Typ \"-A yes\" as argument', dest='arg_show_complete_name', type='string')
 parser.add_option('-T', '--timeout', 			help='Optional: SNMP timeout in seconds', dest='arg_timeout', type='int', default=30)
 (opts, args) = parser.parse_args()
 
@@ -70,7 +74,9 @@ arg_snmp_community		= opts.arg_snmp_community
 arg_snmp_version		= opts.arg_snmp_version
 arg_vpntunnel			= opts.arg_vpntunnel
 arg_vpntunnel_exclude	= opts.arg_vpntunnel_exclude
+arg_show_complete_name	= opts.arg_show_complete_name
 arg_timeout				= opts.arg_timeout
+
 
 # Ignore tunnels with the name "PERS-"" and "PGRP-"
 if arg_vpntunnel_exclude:
@@ -125,6 +131,18 @@ def check_included(vpn_name):
 
 	global tunnels_include
 
+
+	'''
+	todo
+		#normal sheme is IPSEC-Winterhalter-172.20.11.0-172.23.10.0 is active
+		#putting a "-" after every name so that WinterhalterChina is not matched
+		
+		if 'IPSEC' in vpn_name:
+			arg_tunnels_to_check 	= arg_tunnels+'-'
+		else:
+			arg_tunnels_to_check 	= arg_tunnels
+	'''
+
 	for tunnels_include_name in tunnels_include:
 
 		if tunnels_include_name in vpn_name:
@@ -157,7 +175,7 @@ def get_vpn_tunnel():
 	while i < len(vpn_name):
 		# -1, 0 and 1 are all known status codes. If no of these are found the snmp service probably isn't running
 		if vpn_status[i] != '-1' and vpn_status[i] != '0' and vpn_status[i] != '1':
-			return_msg = 'OK - But snmp service is not active on this box'
+			return_msg = 'OK - VPN service inactive or no VPN tunnel configured'
 			output_nagios(return_msg,'', return_code['OK'])			
 
 		# check for excluded and included tunnel names and append tunnel with status to dictionary
@@ -176,32 +194,57 @@ def check_vpn_tunnel_state(vpn_tunnels):
 
 	global return_msg
 
-	return_key 				= 'OK'
-	return_msg_tmp			= ''
-	return_msg_extended_tmp	= ''
+	return_key 						= 'OK'
+	return_msg_tmp					= ''
+	return_msg_extended_active_tmp	= ''
+	return_msg_extended_down_tmp	= ''
 
 	# Loop through all tunnels and evaluate the state
+	tunnel_count 		= 0
+	tunnel_count_active = 0
+	tunnel_count_down 	= 0
+
 	for vpn_tunnel in vpn_tunnels:
 
 		if vpn_tunnel['status'] == '0':
-			return_msg_tmp += vpn_tunnel['name'] + ' (down-disabled), '
-			return_key 				= 'CRITICAL'
+			return_msg_tmp 					+= vpn_tunnel['name'] + ' (down-disabled), '
+			return_msg_extended_down_tmp 	+= '\n' + vpn_tunnel['name'] + ' (down-disabled)'
+			return_key 						= 'CRITICAL'
+			tunnel_count_down 				+= 1
 		elif vpn_tunnel['status'] == '-1':
-			return_msg_tmp += vpn_tunnel['name'] + ' (down), '
-			return_key 				= 'CRITICAL'
+			return_msg_tmp 					+= vpn_tunnel['name'] + ' (down), '
+			return_msg_extended_down_tmp 	+= '\n' + vpn_tunnel['name'] + ' (down)'
+			return_key 						= 'CRITICAL'
+			tunnel_count_down 				+= 1
 		else:
-			return_msg_extended_tmp += '\n' + vpn_tunnel['name'] + ' (active)'
+			return_msg_extended_active_tmp += '\n' + vpn_tunnel['name'] + ' (active)'
+			tunnel_count_active += 1
+
+		tunnel_count += 1
 
 	return_msg_tmp = return_msg_tmp[:-2]
 
-
+	# Show info for critical state
 	if return_key == 'CRITICAL':
-		return_msg = 'Critical - ' + return_msg_tmp + return_msg_extended_tmp
+
+		if arg_show_complete_name == 'yes':
+			return_msg_extended = return_msg_extended_down_tmp + return_msg_extended_active_tmp
+		else:
+			return_msg_extended = '\n' + str(tunnel_count_active) + ' VPN tunnel up / ' + str(tunnel_count_down) + ' VPN tunnel down: ' + return_msg_extended_down_tmp
+
+		return_msg = 'Critical - ' + return_msg_tmp + return_msg_extended
+
+	# Show info for ok state
 	else:
-		if not return_msg_extended_tmp:
-			return_msg_extended_tmp = '\nNo vpn tunnels found'
+		if not return_msg_extended_active_tmp:
+			return_msg_extended_active_tmp = '\nNo VPN tunnel found'
 		
-		return_msg = 'OK - All tunnels are ok' + return_msg_extended_tmp
+		if arg_show_complete_name == 'yes':
+			return_msg_extended = return_msg_extended_active_tmp
+		else:
+			return_msg_extended = ''
+
+		return_msg = 'OK - '+ str(tunnel_count) +' VPN tunnel active' + return_msg_extended
 
 
 	return return_code[return_key]
