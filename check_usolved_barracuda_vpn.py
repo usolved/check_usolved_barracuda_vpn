@@ -25,6 +25,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------
+v1.2 2016-07-11
+Change community parameter capital -C
 
 v1.1 2016-02-17
 Added parameter -A to show tunnel names in the extended output. Default is just number of active/down tunnel.
@@ -61,7 +63,7 @@ cmd = {
 # Parse arguments
 parser 		= optparse.OptionParser()
 parser.add_option('-H', '--hostname', 			help='Required: IP or hostname of the Barracuda firewall', dest='arg_hostname', type='string')
-parser.add_option('-c', '--snmp_community', 	help='Required: SNMP community string', dest='arg_snmp_community', type='string', default='public')
+parser.add_option('-C', '--snmp_community', 	help='Required: SNMP community string', dest='arg_snmp_community', type='string', default='public')
 parser.add_option('-v', '--snmp_version', 		help='Optional: SNMP version (currently only snmp 1 and 2 supported)', dest='arg_snmp_version', type='string', default='2c')
 parser.add_option('-V', '--vpntunnel', 			help='Optional: Tunnel name to check. If not given, all tunnels will be checked', dest='arg_vpntunnel', type='string')
 parser.add_option('-E', '--vpntunnel_exclude', 	help='Optional: Comma separated tunnel names to exclude from check', dest='arg_vpntunnel_exclude', type='string')
