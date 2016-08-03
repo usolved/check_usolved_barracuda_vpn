@@ -15,4 +15,4 @@ releases:
         name: check_usolved_barracuda_vpn.py
         url: "file:///check_usolved_barracuda_vpn.py"
         description: "1.1 release"
-        checksum: 4c898612ac5f67cbe12064134265427f
+        checksum: 53b0ce50058858d2939dc9994840466a
