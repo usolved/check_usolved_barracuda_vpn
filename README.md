@@ -35,7 +35,7 @@ I've tested the plugin on Barracuda appliances F100b, F200b, F200c, F600c and F8
 If you are in the Nagios plugin directory execute this command:
 
 ```
-./check_usolved_barracuda_vpn.py -H ip_address_of_barracuda -C snmp_community
+./check_usolved_barracuda_vpn.py -H ip_address_of_barracuda -c snmp_community
 ```
 
 The output could be something like this:
