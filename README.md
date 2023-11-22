@@ -108,6 +108,9 @@ define service{
 You could also use host macros for the snmp community.
 
 ## What's new
+v1.2 2023-11-22
+Upgrade to python3
+Feature: Added filtering for IPSEC-v2 tunnels. A tunnel will be reported down if child tunnels are not exitent or down.
 
 v1.1 2016-02-17
 Added parameter -A to show tunnel names in the extended output. Default is just number of active/down tunnel.
