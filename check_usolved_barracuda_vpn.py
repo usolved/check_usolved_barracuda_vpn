@@ -1,10 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 This Python Nagios/Icinga plugin checks the state of vpn tunnels of Barracuda firewalls.
-Python 2 is required with use of the libraries sys, os and optparse
+Python 3 is required with use of the libraries sys, os and optparse
 
-Copyright (c) 2016 www.usolved.net 
+Copyright (c) 2016 www.usolved.net
 Published under https://github.com/usolved/check_usolved_barracuda_vpn
 
 The MIT License (MIT)
@@ -25,6 +25,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------
+v1.2 2023-11-22
+Upgrade to python3
+Feature: Added filtering for IPSEC-v2 tunnels. A tunnel will be reported down if child tunnels are not exitent or down.
 
 v1.1 2016-02-17
 Added parameter -A to show tunnel names in the extended output. Default is just number of active/down tunnel.
@@ -37,7 +40,7 @@ Initial release
 import sys
 import os
 import optparse
-
+import re
 
 ######################################################################
 # Definitions of variables
@@ -98,7 +101,7 @@ else:
 
 # Outputs the string for nagios and return with the appropriate exit code
 def output_nagios(return_msg, return_perfdata, return_code):
-	print return_msg
+	print(return_msg)
 	sys.exit(return_code)
 
 # Execute shell commands
@@ -149,7 +152,7 @@ def get_vpn_tunnel():
 	# read snmp info for every vpn tunnel
 	vpn_name 	= get_cmd_execute(cmdline+' '+snmp_oid_vpnname)
 	vpn_status 	= get_cmd_execute(cmdline+' '+snmp_oid_vpnstate)
-
+	print("Get names" + cmdline+' '+snmp_oid_vpnname)
 
 	# put the returned data into a dictionary to have the data in context
 	vpn_tunnels 	= []
@@ -158,22 +161,17 @@ def get_vpn_tunnel():
 	# handle issue if the number of results from snmpwalk differ for name and status
 	if len(vpn_name) != len(vpn_status):
 		return_msg = 'UNKNOWN - VPN status and tunnel name list don\'t match. Maybe there\'s a line break in the tunnel name. Try to specify a tunnel with argument -V'
-		output_nagios(return_msg,'', return_code['UNKNOWN'])		
+		output_nagios(return_msg,'', return_code['UNKNOWN'])
 
-	i = 0
-	while i < len(vpn_name):
+	for status,name in zip(vpn_status, vpn_name):
 		# -1, 0 and 1 are all known status codes. If no of these are found the snmp service probably isn't running
-		if vpn_status[i] != '-1' and vpn_status[i] != '0' and vpn_status[i] != '1':
+		if not status in ['-1','0','1']:
 			return_msg = 'OK - VPN service inactive or no VPN tunnel configured'
-			output_nagios(return_msg,'', return_code['OK'])			
+			output_nagios(return_msg,'', return_code['OK'])
 
 		# check for excluded and included tunnel names and append tunnel with status to dictionary
-		if check_excluded(vpn_name[i]) and (tunnels_include == 'ALL' or check_included(vpn_name[i])):
-			tmp_dict 	= {'name': vpn_name[i], 'status': vpn_status[i]}
-
-			vpn_tunnels.append(tmp_dict)
-		
-		i += 1
+		if check_excluded(name) and (tunnels_include == 'ALL' or check_included(name)):
+			vpn_tunnels.append({'name': name, 'status': status})
 
 	return vpn_tunnels
 
@@ -193,7 +191,21 @@ def check_vpn_tunnel_state(vpn_tunnels):
 	tunnel_count_active = 0
 	tunnel_count_down 	= 0
 
+	vpn_tunnels = find_children(vpn_tunnels)
+
 	for vpn_tunnel in vpn_tunnels:
+
+		# Check tunnel has key children. If yes, check if one or more tunnels are down.
+		if "children" in vpn_tunnel.keys():
+			# If no children are found, set parent to down
+			if len(vpn_tunnel["children"]) == 0:
+				vpn_tunnel["status"] = '-1'
+			for child in vpn_tunnel["children"]:
+			# If one child is down, set parent to down
+				if child["status"] in ['0','-1']:
+					vpn_tunnel["status"] = '-1'
+				else:
+					vpn_tunnel["status"] = '1'
 
 		if vpn_tunnel['status'] == '0':
 			return_msg_tmp 					+= vpn_tunnel['name'] + ' (down-disabled), '
@@ -227,7 +239,7 @@ def check_vpn_tunnel_state(vpn_tunnels):
 	else:
 		if not return_msg_extended_active_tmp:
 			return_msg_extended_active_tmp = '\nNo VPN tunnel found'
-		
+
 		if arg_show_complete_name == 'yes':
 			return_msg_extended = return_msg_extended_active_tmp
 		else:
@@ -238,6 +250,33 @@ def check_vpn_tunnel_state(vpn_tunnels):
 
 	return return_code[return_key]
 
+def find_children(vpn_tunnels):
+	# Find children of VPN Tunnel with the format: VPN_TUNNEL_NAME{12345}
+	children = []
+	for tunnel in vpn_tunnels:
+		if re.match(r".*\{\d+\}", tunnel['name']):
+			children.append(tunnel)
+
+	# Remove children form original list
+	if children:
+		for child in children:
+			vpn_tunnels.remove(child)
+
+	# Add children to original tunnel
+		i = 0
+		while i < len(vpn_tunnels):
+			tunnel = vpn_tunnels[i]
+			# If Parent is in format IPSEC-v2, add children dict and find children
+			if re.match(r"IPSEC-v2-.*", tunnel["name"]):
+				tunnel["children"] = []
+				for child in children:
+					if tunnel["name"] in child["name"]:
+						tunnel["children"].append(child)
+				for child in tunnel["children"]:
+					children.remove(child)
+				vpn_tunnels[i] = tunnel
+			i+=1
+	return vpn_tunnels
 
 
 ######################################################################
