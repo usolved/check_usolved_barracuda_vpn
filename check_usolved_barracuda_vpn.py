@@ -152,7 +152,6 @@ def get_vpn_tunnel():
 	# read snmp info for every vpn tunnel
 	vpn_name 	= get_cmd_execute(cmdline+' '+snmp_oid_vpnname)
 	vpn_status 	= get_cmd_execute(cmdline+' '+snmp_oid_vpnstate)
-	print("Get names" + cmdline+' '+snmp_oid_vpnname)
 
 	# put the returned data into a dictionary to have the data in context
 	vpn_tunnels 	= []
